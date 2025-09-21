@@ -1,4 +1,3 @@
-// services/pollService.js
 const { polls } = require('../models/pollModel');
 const { generateId } = require('../utils/helpers');
 
@@ -83,7 +82,7 @@ function addStudent(socketId, name) {
     name: cleanName, 
     connectedAt: new Date().toISOString() 
   };
-
+  io.emit('server:studentJoined', { socketId, name: cleanName });
   const poll = getActivePoll();
   if (!poll) {
     // No active poll, but student is now registered for future polls
@@ -91,12 +90,11 @@ function addStudent(socketId, name) {
     return null;
   }
 
-  // Add to active poll (remove unique name constraint to allow multiple tabs)
+  // Add to active poll 
   poll.students[socketId] = { name: cleanName };
   
   console.log(`Student ${cleanName} joined active poll. Total students: ${Object.keys(poll.students).length}`);
   
-  io.emit('server:studentJoined', { socketId, name: cleanName });
   
   // Broadcast updated student count
   io.emit('server:pollUpdate', {
@@ -185,7 +183,7 @@ function endPoll(pollId) {
     options: poll.options.map(o => o.text)
   });
 
-  // Clean up finished polls after 5 minutes to prevent memory leaks
+  // Clean up finished polls after 3 minutes to prevent memory leaks
   setTimeout(() => {
     delete polls[pollId];
     console.log(`Cleaned up poll ${pollId}`);
@@ -193,12 +191,20 @@ function endPoll(pollId) {
 }
 
 function removeStudent(studentId) {
+  console.log(`Attempting to remove student: ${studentId}`);
+  console.log(`Connected students:`, Object.keys(connectedStudents));
+  
   const poll = getActivePoll();
   
   // Remove from global registry
   delete connectedStudents[studentId];
   
-  if (!poll) return;
+  if (!poll) {
+    console.log('No active poll found');
+    return;
+  }
+
+  console.log(`Poll students:`, Object.keys(poll.students));
 
   if (poll.students[studentId]) {
     // if they answered, decrement the count
@@ -222,8 +228,18 @@ function removeStudent(studentId) {
       totalStudents: Object.keys(poll.students).length
     });
 
+    console.log(`Looking for socket: ${studentId}`);
     const s = io.sockets.sockets.get(studentId);
-    if (s) s.emit('removed', { message: 'You were removed by the teacher' });
+    console.log(`Socket found:`, !!s);
+    
+    if (s) {
+      console.log(`Emitting 'removed' event to ${studentId}`);
+      s.emit('removed', { message: 'You were removed by the teacher' });
+    } else {
+      console.log(`Socket ${studentId} not found - student may have disconnected`);
+    }
+  } else {
+    console.log(`Student ${studentId} not found in poll.students`);
   }
 }
 

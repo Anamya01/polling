@@ -1,4 +1,3 @@
-// controllers/pollController.js
 const pollService = require('../services/pollService');
 
 exports.createPoll = (req, res) => {

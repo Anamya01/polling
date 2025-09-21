@@ -1,4 +1,3 @@
-// config/socket.js
 const pollService = require('../services/pollService');
 
 module.exports = function initSockets(io) {
